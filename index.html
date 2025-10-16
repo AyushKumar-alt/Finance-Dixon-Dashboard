@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Financial Dashboard — Dixon vs Honeywell</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 24px;
+      background-color: #f8f9fc;
+      color: #333;
+    }
+    h2 {
+      margin-bottom: 4px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 18px;
+    }
+    .controls {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .control {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      min-width: 250px;
+    }
+    label {
+      font-size: 13px;
+      color: #555;
+      margin-bottom: 4px;
+    }
+    select, input[type=range] {
+      padding: 6px;
+      font-size: 14px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    .kpi-cards {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .kpi-card {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      padding: 10px 14px;
+      min-width: 160px;
+    }
+    .main {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .chart-container {
+      flex: 1 1 68%;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+      padding: 10px;
+    }
+    .side {
+      flex: 0 0 340px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .side-card {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+      padding: 10px;
+    }
+    pre {
+      font-family: monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+    }
+    footer {
+      margin-top: 12px;
+      font-size: 12px;
+      color: #999;
+    }
+  </style>
+</head>
+<body>
+  <h2>Financial Dashboard — Dixon vs Honeywell</h2>
+  <div class="subtitle">Compare liquidity, profitability and turnover metrics (Mar-21 → Mar-25).</div>
+
+  <div class="controls">
+    <div class="control">
+      <label>Company</label>
+      <select id="company-select">
+        <option value="Both">Both Companies</option>
+        <option value="Dixon">Dixon Technologies</option>
+        <option value="Honeywell">Honeywell Automation</option>
+      </select>
+    </div>
+    <div class="control">
+      <label>Metric group</label>
+      <select id="metric-group">
+        <option value="liquidity">Liquidity Ratios</option>
+        <option value="profitability">Profitability Ratios</option>
+        <option value="turnover">Turnover Ratios</option>
+      </select>
+    </div>
+    <div class="control" style="min-width:300px;">
+      <label>Year range: <span id="year-label">2021 — 2025</span></label>
+      <input type="range" id="year-min" min="2021" max="2025" value="2021" step="1">
+      <input type="range" id="year-max" min="2021" max="2025" value="2025" step="1">
+    </div>
+  </div>
+
+  <div id="kpi-cards" class="kpi-cards"></div>
+
+  <div class="main">
+    <div class="chart-container">
+      <div id="main-chart" style="height:520px;"></div>
+    </div>
+    <div class="side">
+      <div class="side-card">
+        <h4>Mini-trend & data</h4>
+        <div id="spark-chart" style="height:220px;"></div>
+      </div>
+      <div class="side-card">
+        <pre id="data-table"></pre>
+      </div>
+    </div>
+  </div>
+
+  <footer>Data source: user-provided values (Mar-21 → Mar-25).</footer>
+
+  <script>
+    const years = ['Mar-21', 'Mar-22', 'Mar-23', 'Mar-24', 'Mar-25'];
+    const yearNums = [2021, 2022, 2023, 2024, 2025];
+
+    const dixon = {
+      'Current Ratio': [1.17, 1.15, 1.07, 1.48, 1.33],
+      'Quick Ratio': [1.12, 1.14, 1.27, 1.12, 1.01],
+      'Gross Profit Margin': [4.04, 3.04, 4.33, 3.91, 3.25],
+      'Net Profit Margin': [2.48, 1.78, 2.09, 2.08, 2.82],
+      'Inventory Turnover': [15.48, 10.41, 10.42, 12.17, 12.69],
+      'Asset Turnover': [2.27, 2.49, 2.60, 2.52, 2.30],
+      'Trade Receivable Turnover': [11.84, 8.73, 7.93, 8.73, 8.31]
+    };
+
+    const honeywell = {
+      'Current Ratio': [2.72, 3.26, 3.41, 3.66, 3.45],
+      'Quick Ratio': [2.61, 3.13, 3.22, 3.49, 3.24],
+      'Gross Profit Margin': [17.75, 12.91, 13.54, 13.20, 12.65],
+      'Net Profit Margin': [15.11, 11.50, 12.70, 12.35, 12.49],
+      'Inventory Turnover': [31.89, 29.90, 20.94, 25.51, 17.66],
+      'Asset Turnover': [1.28, 1.09, 1.14, 1.19, 1.10],
+      'Trade Receivable Turnover': [3.58, 3.62, 4.28, 4.35, 4.20]
+    };
+
+    const metricGroups = {
+      liquidity: ['Current Ratio', 'Quick Ratio'],
+      profitability: ['Gross Profit Margin', 'Net Profit Margin'],
+      turnover: ['Inventory Turnover', 'Asset Turnover', 'Trade Receivable Turnover']
+    };
+
+    const selectCompany = document.getElementById('company-select');
+    const selectGroup = document.getElementById('metric-group');
+    const yearMin = document.getElementById('year-min');
+    const yearMax = document.getElementById('year-max');
+    const yearLabel = document.getElementById('year-label');
+    const kpiDiv = document.getElementById('kpi-cards');
+    const dataPre = document.getElementById('data-table');
+
+    function getLatestVal(company, metric) {
+      const src = company === 'Dixon' ? dixon : honeywell;
+      return src[metric][src[metric].length - 1];
+    }
+
+    function updateKPIs() {
+      kpiDiv.innerHTML = '';
+      const metrics = ['Current Ratio', 'Quick Ratio', 'Gross Profit Margin', 'Net Profit Margin', 'Inventory Turnover', 'Asset Turnover'];
+      metrics.forEach(metric => {
+        let html = '';
+        if (selectCompany.value === 'Both') {
+          const d = getLatestVal('Dixon', metric);
+          const h = getLatestVal('Honeywell', metric);
+          html = `<div style="font-size:12px;">${metric}</div>
+                  <div style="display:flex;gap:10px;margin-top:6px;">
+                    <div><div style="font-size:11px;color:#666;">Dixon</div><div style="font-weight:700;">${d.toFixed(2)}</div></div>
+                    <div><div style="font-size:11px;color:#666;">Honeywell</div><div style="font-weight:700;">${h.toFixed(2)}</div></div>
+                  </div>`;
+        } else {
+          const val = getLatestVal(selectCompany.value, metric);
+          html = `<div style="font-size:12px;">${metric}</div>
+                  <div style="font-size:18px;font-weight:700;margin-top:6px;">${val.toFixed(2)}</div>`;
+        }
+        const card = document.createElement('div');
+        card.className = 'kpi-card';
+        card.innerHTML = html;
+        kpiDiv.appendChild(card);
+      });
+    }
+
+    function updateCharts() {
+      const yrMin = +yearMin.value, yrMax = +yearMax.value;
+      yearLabel.textContent = `${yrMin} — ${yrMax}`;
+      const metrics = metricGroups[selectGroup.value];
+      const idxMin = yearNums.indexOf(yrMin), idxMax = yearNums.indexOf(yrMax);
+      const range = years.slice(idxMin, idxMax + 1);
+
+      const mainData = [];
+      if (selectCompany.value === 'Both') {
+        metrics.forEach(metric => {
+          ['Dixon', 'Honeywell'].forEach(comp => {
+            const src = comp === 'Dixon' ? dixon : honeywell;
+            mainData.push({
+              x: range,
+              y: src[metric].slice(idxMin, idxMax + 1),
+              name: `${comp} — ${metric}`,
+              type: 'bar',
+              text: src[metric].slice(idxMin, idxMax + 1).map(v => v.toFixed(2)),
+              textposition: 'auto'
+            });
+          });
+        });
+      } else {
+        metrics.forEach(metric => {
+          const src = selectCompany.value === 'Dixon' ? dixon : honeywell;
+          mainData.push({
+            x: range,
+            y: src[metric].slice(idxMin, idxMax + 1),
+            name: metric,
+            type: 'bar',
+            text: src[metric].slice(idxMin, idxMax + 1).map(v => v.toFixed(2)),
+            textposition: 'auto'
+          });
+        });
+      }
+      Plotly.newPlot('main-chart', mainData, {
+        barmode: 'group',
+        title: selectCompany.value === 'Both' ? 'Comparison — grouped by metric & company' : `${selectCompany.value} — ${selectGroup.value}`,
+        xaxis: { title: 'Year' },
+        yaxis: { title: 'Value' },
+        margin: { t: 60, r: 20, l: 50, b: 50 }
+      });
+
+      // Sparkline (first metric)
+      const primary = metrics[0];
+      const sparkData = [];
+      if (selectCompany.value === 'Both') {
+        ['Dixon', 'Honeywell'].forEach(comp => {
+          const src = comp === 'Dixon' ? dixon : honeywell;
+          sparkData.push({ x: range, y: src[primary].slice(idxMin, idxMax + 1), name: comp, mode: 'lines+markers' });
+        });
+      } else {
+        const src = selectCompany.value === 'Dixon' ? dixon : honeywell;
+        sparkData.push({ x: range, y: src[primary].slice(idxMin, idxMax + 1), name: selectCompany.value, mode: 'lines+markers' });
+      }
+      Plotly.newPlot('spark-chart', sparkData, {
+        title: `Trend — ${primary}`,
+        margin: { t: 30, b: 30, l: 40, r: 20 },
+        height: 220
+      });
+
+      // Data table (as text)
+      let table = 'Year,Company,Metric,Value\n';
+      metrics.forEach(metric => {
+        ['Dixon', 'Honeywell'].forEach(comp => {
+          const src = comp === 'Dixon' ? dixon : honeywell;
+          range.forEach((yr, i) => {
+            const val = src[metric][idxMin + i];
+            table += `${yr},${comp},${metric},${val.toFixed(2)}\n`;
+          });
+        });
+      });
+      dataPre.textContent = table;
+    }
+
+    [selectCompany, selectGroup, yearMin, yearMax].forEach(el => el.addEventListener('input', () => {
+      if (+yearMin.value > +yearMax.value) {
+        if (el === yearMin) yearMax.value = yearMin.value;
+        else yearMin.value = yearMax.value;
+      }
+      updateKPIs();
+      updateCharts();
+    }));
+
+    updateKPIs();
+    updateCharts();
+  </script>
+</body>
+</html>
